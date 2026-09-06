@@ -74,12 +74,33 @@
       </div>
       <button id="closeExitBtn">SLUITEN</button>
     </div>
+    <div class="exitProgress" aria-label="Voortgang van de laatste vijf minuten"><div class="exitProgressFill" id="exitProgressFill"></div></div>
     <div class="questions" id="questions">
       <div class="question" id="questionOne"></div>
       <div class="question" id="questionTwo"></div>
       <div class="question" id="questionThree"></div>
     </div>
     <div class="simpleMessage" id="simpleMessage"></div>
+  </div>
+</div>
+
+<div class="timerOverlay" id="timerOverlay">
+  <div class="timerOverlayWrap">
+    <div class="timerOverlayTop">
+      <div>
+        <div class="timerOverlayLabel" id="timerOverlayLabel">QUIZTIMER</div>
+        <div class="timerOverlaySub" id="timerOverlaySub">Tijd loopt</div>
+      </div>
+      <button id="closeTimerOverlay">TERUG</button>
+    </div>
+    <div class="timerOverlayMain">
+      <div class="timerOverlayTime" id="timerOverlayDisplay">02:00</div>
+      <div class="timerProgress" aria-label="Voortgang quiztimer"><div class="timerProgressFill" id="timerProgressFill"></div></div>
+      <div class="timerOverlayActions">
+        <button id="overlayPauseBtn">PAUZE</button>
+        <button id="overlayResetBtn">RESET</button>
+      </div>
+    </div>
   </div>
 </div>
 
