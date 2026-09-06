@@ -1,6 +1,7 @@
 (() => {
   const defaultSchedule = {
-    '1':[], '2':[], '3':[], '4':[],
+    '1':[{start:'09:40',end:'10:30'},{start:'15:00',end:'15:50'}],
+    '2':[], '3':[], '4':[],
     '5':[{start:'11:30',end:'12:20'},{start:'12:20',end:'13:10'}]
   };
   const defaultQuestions = {
@@ -162,7 +163,7 @@
       try{const data=JSON.parse(localStorage.getItem(key));const slug=key.replace('exitquiz:profile:','');found.push({slug,name:data?.profileName||slug})}catch(e){}
     }
     found.sort((a,b)=>a.name.localeCompare(b.name));savedProfileList.innerHTML='';
-    if(!found.length){savedProfileList.innerHTML='<span class="localNote">Nog geen klokken bewaard.</span>';return}
+    if(!found.length){savedProfileList.innerHTML='<span class="localNote">Nog geen exit-slips bewaard.</span>';return}
     found.forEach(item=>{const el=document.createElement('button');el.className='savedProfileLink';el.textContent=`${item.name} · /${item.slug}`;el.addEventListener('click',()=>location.href=profileUrl(item.slug));savedProfileList.appendChild(el)});
   }
   function saveProfile(){
@@ -182,7 +183,7 @@
   profileSlugInput.addEventListener('input',()=>{profileSlugInput.dataset.touched='1';profileSlugInput.value=slugify(profileSlugInput.value)});
   $('helpBtn').addEventListener('click',()=>{fillEditor();modalBackdrop.classList.add('show')});
   $('closeModalBtn').addEventListener('click',()=>modalBackdrop.classList.remove('show'));
-  $('useOnceBtn').addEventListener('click',()=>{applyEditor();modalBackdrop.classList.remove('show');showToast('Aangepaste klok actief. Niet opgeslagen.')});
+  $('useOnceBtn').addEventListener('click',()=>{applyEditor();modalBackdrop.classList.remove('show');showToast('Aangepaste exit-slip actief. Niet opgeslagen.')});
   $('saveProfileBtn').addEventListener('click',saveProfile);
   $('restoreExampleBtn').addEventListener('click',restoreExample);
   modalBackdrop.addEventListener('click',e=>{if(e.target===modalBackdrop)modalBackdrop.classList.remove('show')});
@@ -212,5 +213,5 @@
   $('timerOnlyBtn').addEventListener('click',()=>{document.body.classList.toggle('timerOnly');$('timerOnlyBtn').textContent=document.body.classList.contains('timerOnly')?'VOLLEDIGE KLOK':'ENKEL QUIZTIMER'});
 
   renderTimer();renderClock();setInterval(renderClock,1000);
-  if(routeSlug&&!routeProfile)setTimeout(()=>showToast('Deze lokale klok is niet op dit toestel bewaard. Standaardvoorbeeld geladen.'),500);
+  if(routeSlug&&!routeProfile)setTimeout(()=>showToast('Deze lokale exit-slip is niet op dit toestel bewaard. Standaardvoorbeeld geladen.'),500);
 })();
