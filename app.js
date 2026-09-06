@@ -5,7 +5,7 @@
     '5':[{start:'11:30',end:'12:20'},{start:'12:20',end:'13:10'}]
   };
   const defaultQuestions = {
-    q1:'Welk idee onthoud je?',
+    q1:'Welk idee uit de les zul je spontaan onthouden?',
     q2:'Welke vraag heb je nog, of wat was het minst duidelijk?',
     q3a:'Leg de les uit aan iemand van 12 jaar in één zin.',
     q3b:'Bedenk één goede toetsvraag over de les.'
@@ -31,9 +31,11 @@
   let currentSlug = routeProfile ? routeSlug : '';
   let schedule = routeProfile?.schedule ? clone(routeProfile.schedule) : clone(defaultSchedule);
   let questionConfig = routeProfile?.questions ? clone(routeProfile.questions) : clone(defaultQuestions);
+  if(questionConfig.q1 === 'Welk idee onthoud je?') questionConfig.q1 = defaultQuestions.q1;
 
   const clockEl=$('clock'), dateEl=$('date'), scheduleEl=$('schedule'), nextAlarmEl=$('nextAlarm'), livePill=$('livePill'), liveLabel=$('liveLabel'), profileLabel=$('profileLabel');
-  const exitOverlay=$('exitOverlay'), questionsEl=$('questions'), simpleMessage=$('simpleMessage');
+  const exitOverlay=$('exitOverlay'), questionsEl=$('questions'), simpleMessage=$('simpleMessage'), exitProgressFill=$('exitProgressFill');
+  const timerOverlay=$('timerOverlay'), timerOverlayDisplay=$('timerOverlayDisplay'), timerProgressFill=$('timerProgressFill'), timerOverlayLabel=$('timerOverlayLabel'), timerOverlaySub=$('timerOverlaySub');
   const modalBackdrop=$('modalBackdrop'), profileNameInput=$('profileNameInput'), profileSlugInput=$('profileSlugInput'), savedProfileList=$('savedProfileList');
   const questionInputs={q1:$('question1'),q2:$('question2'),q3a:$('question3a'),q3b:$('question3b')};
   const dayTextareas=[...document.querySelectorAll('textarea[data-day]')];
@@ -41,6 +43,7 @@
 
   let audioCtx=null, soundArmed=false;
   const fired=new Set();
+  let exitStartedAt=null, exitEndsAt=null, exitProgressId=null;
 
   function showToast(msg){
     toast.textContent=msg; toast.classList.add('show');
@@ -88,19 +91,37 @@
     }catch(e){}
   }
 
-  function showExit(play=true){
+  function endTimestampFor(time, now=new Date()){
+    const [h,m]=time.split(':').map(Number);
+    const d=new Date(now);d.setHours(h,m,0,0);return d.getTime();
+  }
+  function renderExitProgress(){
+    if(!exitStartedAt||!exitEndsAt)return;
+    const now=Date.now();
+    const total=Math.max(1,exitEndsAt-exitStartedAt), elapsed=Math.max(0,Math.min(total,now-exitStartedAt));
+    const pct=elapsed/total*100;
+    if(exitProgressFill)exitProgressFill.style.width=pct+'%';
+    const left=Math.max(0,Math.ceil((exitEndsAt-now)/1000));
+    $('exitSub').textContent=left>0?`Nog ${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`:'Les afgelopen';
+    if(left<=0){clearInterval(exitProgressId);exitProgressId=null}
+  }
+  function startExitProgress(endAt){
+    clearInterval(exitProgressId);
+    exitEndsAt=endAt||Date.now()+5*60*1000;
+    exitStartedAt=exitEndsAt-5*60*1000;
+    renderExitProgress();
+    exitProgressId=setInterval(renderExitProgress,250);
+  }
+  function showExit(play=true,endAt=null){
     if(play)alertSound();
     const variant=currentWeekVariant(new Date());
-    $('exitTitle').textContent='EXIT SLIP'; $('exitSub').textContent='Nog 5 minuten';
+    $('exitTitle').textContent='EXIT SLIP';
     $('questionOne').textContent='1. '+questionConfig.q1;
     $('questionTwo').textContent='2. '+questionConfig.q2;
     $('questionThree').textContent='3. '+(variant==='a'?questionConfig.q3a:questionConfig.q3b);
     questionsEl.style.display='grid';simpleMessage.style.display='none';exitOverlay.classList.add('show');
+    startExitProgress(endAt||Date.now()+5*60*1000);
     try{window.focus()}catch(e){}
-  }
-  function showQuizDone(){
-    timerSound(); $('exitTitle').textContent='TIJD'; $('exitSub').textContent='';
-    questionsEl.style.display='none';simpleMessage.textContent='De quiztimer is afgelopen.';simpleMessage.style.display='block';exitOverlay.classList.add('show');
   }
 
   function localDateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -111,7 +132,7 @@
     for(const lesson of lessons){
       const alarmSec=(mins(lesson.end)-5)*60, endSec=mins(lesson.end)*60, key=`${localDateKey(now)}-${lesson.end}`;
       if(nowSec>=alarmSec&&nowSec<endSec&&!fired.has(key)){
-        fired.add(key);showExit(true);notifyExit();
+        fired.add(key);showExit(true,endTimestampFor(lesson.end,now));notifyExit();
       }
     }
   }
@@ -187,29 +208,59 @@
   $('saveProfileBtn').addEventListener('click',saveProfile);
   $('restoreExampleBtn').addEventListener('click',restoreExample);
   modalBackdrop.addEventListener('click',e=>{if(e.target===modalBackdrop)modalBackdrop.classList.remove('show')});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){modalBackdrop.classList.remove('show');exitOverlay.classList.remove('show')}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){modalBackdrop.classList.remove('show');exitOverlay.classList.remove('show');timerOverlay.classList.remove('show')}});
 
   $('alarmBtn').addEventListener('click',async()=>{ensureAudio();alertSound();await requestNotifications();showToast('Alarm actief voor deze browser.')});
-  $('testBtn').addEventListener('click',async()=>{if(!soundArmed){ensureAudio();await requestNotifications()}showExit(true)});
+  $('testBtn').addEventListener('click',async()=>{if(!soundArmed){ensureAudio();await requestNotifications()}showExit(true,Date.now()+5*60*1000)});
   $('closeExitBtn').addEventListener('click',()=>exitOverlay.classList.remove('show'));
 
   const timerDisplay=$('timerDisplay'), startPause=$('startPause');
   let selectedSeconds=120,remaining=120,running=false,endAt=null,tickId=null;
   function fmt(sec){sec=Math.max(0,Math.ceil(sec));return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`}
-  function renderTimer(){timerDisplay.textContent=fmt(remaining)}
-  function setTimer(sec){running=false;clearInterval(tickId);tickId=null;selectedSeconds=Math.max(0,sec);remaining=selectedSeconds;endAt=null;startPause.textContent='START';renderTimer()}
+  function renderTimer(){
+    const value=fmt(remaining);timerDisplay.textContent=value;if(timerOverlayDisplay)timerOverlayDisplay.textContent=value;
+    const pct=selectedSeconds>0?Math.max(0,Math.min(100,(selectedSeconds-remaining)/selectedSeconds*100)):100;
+    if(timerProgressFill)timerProgressFill.style.width=pct+'%';
+    if($('overlayPauseBtn'))$('overlayPauseBtn').textContent=running?'PAUZE':(remaining<selectedSeconds&&remaining>0?'VERDER':'START');
+  }
+  function setTimer(sec){
+    running=false;clearInterval(tickId);tickId=null;selectedSeconds=Math.max(0,sec);remaining=selectedSeconds;endAt=null;startPause.textContent='START';
+    timerOverlayLabel.textContent='QUIZTIMER';timerOverlaySub.textContent='Klaar om te starten';renderTimer();
+  }
   document.querySelectorAll('.preset').forEach(b=>b.addEventListener('click',()=>setTimer(Number(b.dataset.seconds))));
   $('setCustom').addEventListener('click',()=>{const m=Math.max(0,Number($('mins').value)||0),s=Math.min(59,Math.max(0,Number($('secs').value)||0));setTimer(m*60+s)});
   $('resetBtn').addEventListener('click',()=>setTimer(selectedSeconds));
+
+  async function openTimerOverlay(){
+    timerOverlay.classList.add('show');timerOverlayLabel.textContent='QUIZTIMER';timerOverlaySub.textContent=running?'Tijd loopt':'Gepauzeerd';renderTimer();
+    try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen()}catch(e){}
+  }
+  async function closeTimerOverlay(){
+    timerOverlay.classList.remove('show');
+    try{if(document.fullscreenElement&&document.exitFullscreen)await document.exitFullscreen()}catch(e){}
+  }
+  function startTimer(){
+    if(!soundArmed)ensureAudio();
+    if(remaining<=0)remaining=selectedSeconds;
+    running=true;endAt=Date.now()+remaining*1000;startPause.textContent='PAUZE';timerOverlaySub.textContent='Tijd loopt';
+    clearInterval(tickId);tickId=setInterval(timerTick,100);renderTimer();
+  }
+  function pauseTimer(){
+    if(!running)return;remaining=Math.max(0,(endAt-Date.now())/1000);running=false;clearInterval(tickId);tickId=null;startPause.textContent='VERDER';timerOverlaySub.textContent='Gepauzeerd';renderTimer();
+  }
   function timerTick(){
     if(!running||!endAt)return;remaining=Math.max(0,(endAt-Date.now())/1000);renderTimer();
-    if(remaining<=0){running=false;clearInterval(tickId);tickId=null;startPause.textContent='START';remaining=0;renderTimer();showQuizDone()}
+    if(remaining<=0){
+      running=false;clearInterval(tickId);tickId=null;startPause.textContent='START';remaining=0;renderTimer();timerSound();
+      timerOverlay.classList.add('show');timerOverlayLabel.textContent='TIJD';timerOverlaySub.textContent='De quiztimer is afgelopen.';
+    }
   }
-  startPause.addEventListener('click',()=>{
-    if(!soundArmed)ensureAudio();
-    if(!running){if(remaining<=0)remaining=selectedSeconds;running=true;endAt=Date.now()+remaining*1000;startPause.textContent='PAUZE';tickId=setInterval(timerTick,200)}
-    else{remaining=Math.max(0,(endAt-Date.now())/1000);running=false;clearInterval(tickId);tickId=null;startPause.textContent='VERDER';renderTimer()}
+  startPause.addEventListener('click',async()=>{
+    if(!running){await openTimerOverlay();startTimer()}else{pauseTimer()}
   });
+  $('overlayPauseBtn').addEventListener('click',()=>{running?pauseTimer():startTimer()});
+  $('overlayResetBtn').addEventListener('click',()=>setTimer(selectedSeconds));
+  $('closeTimerOverlay').addEventListener('click',closeTimerOverlay);
   $('timerOnlyBtn').addEventListener('click',()=>{document.body.classList.toggle('timerOnly');$('timerOnlyBtn').textContent=document.body.classList.contains('timerOnly')?'VOLLEDIGE KLOK':'ENKEL QUIZTIMER'});
 
   renderTimer();renderClock();setInterval(renderClock,1000);
